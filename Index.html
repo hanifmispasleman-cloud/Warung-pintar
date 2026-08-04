@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>WarungPintar - POS & Keuangan UMKM</title>
+
+    <!-- PWA Meta Tags -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#2563eb">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="WarungPintar">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com">
+    </script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: { 50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe', 300: '#93c5fd', 400: '#60a5fa', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8', 800: '#1e40af' },
+                        success: '#10b981',
+                        danger: '#ef4444',
+                        warning: '#f59e0b',
+                    },
+                }
+            }
+        }
+    </script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+    <style>
+        * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+        body { font-family: 'Inter', system-ui, sans-serif; background: #f8fafc; margin: 0; padding: 0; }
+        .touch-target { min-height: 44px; min-width: 44px; cursor: pointer; user-select: none; transition: all 0.12s; }
+        .touch-target:active { transform: scale(0.96); opacity: 0.8; }
+        .card-shadow { box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.04); }
+        .modal-overlay { background: rgba(0,0,0,0.5); backdrop-filter: blur(2px); }
+        .slide-up { animation: slideUp 0.28s ease-out; }
+        @keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .fade-in { animation: fadeIn 0.2s ease-out; }
+        .bubble-advisor { border-radius: 16px 16px 16px 4px; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-outer-spin-button { opacity: 1; height: 28px; }
+        .date-divider { display: flex; align-items: center; gap: 10px; margin: 16px 0 8px; }
+        .date-divider::before, .date-divider::after { content: ''; flex: 1; height: 1px; background: #e5e7eb; }
+        .date-divider span { font-size: 0.7rem; font-weight: 600; color: #9ca3af; white-space: nowrap; }
+        .receipt-paper { background: #fefefe; background-image: repeating-linear-gradient(0deg, transparent, transparent 28px, #f0f0f0 28px, #f0f0f0 29px); border-radius: 12px; font-family: 'Courier New', monospace; }
+        @media (max-width: 380px) { .bottom-nav-label { font-size: 0.6rem; } .bottom-nav-icon { font-size: 1.1rem; } }
+        .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div id="root"></div>
+
+    <!-- React & Babel CDN -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <script type="text/babel">
+        const { useState, useEffect, useCallback, useMemo } = React;
+
+        // ==================== DATA DEMO ====================
+        // ... [Data DEMO_MATERIALS, DEMO_MENU, DEMO_SALES, DEMO_OPEX, DEMO_WASTE] ...
+        // Sama seperti sebelumnya, untuk ringkas tidak ditulis ulang di sini.
+        // Pastikan Anda menyertakan data demo yang lengkap dari kode sebelumnya.
+
+        // ==================== HELPER FUNCTIONS ====================
+        // ... [generateId, formatRupiah, formatDate, dll] ...
+
+        // ==================== APP COMPONENT ====================
+        function App() {
+            // ... [semua state dan fungsi dari kode sebelumnya] ...
+
+            // *** FUNGSI BACKUP & EKSPOR ***
+            const exportData = () => {
+                const data = {
+                    materials,
+                    menuItems,
+                    sales,
+                    opexList,
+                    wasteList,
+                    exportDate: new Date().toISOString()
+                };
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `warungpintar_backup_${new Date().toISOString().slice(0,10)}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+                showToast('✅ Data berhasil diekspor ke file JSON', 'success');
+            };
+
+            const importData = (file) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const json = JSON.parse(e.target.result);
+                        // Validasi minimal
+                        if (json.materials && json.menuItems && json.sales && json.opexList && json.wasteList) {
+                            setMaterials(json.materials);
+                            setMenuItems(json.menuItems);
+                            setSales(json.sales);
+                            setOpexList(json.opexList);
+                            setWasteList(json.wasteList);
+                            setCart([]);
+                            showToast('✅ Data berhasil diimpor! Aplikasi diperbarui.', 'success');
+                        } else {
+                            showToast('❌ Format file tidak sesuai.', 'error');
+                        }
+                    } catch (err) {
+                        showToast('❌ Gagal membaca file JSON.', 'error');
+                    }
+                };
+                reader.readAsText(file);
+            };
+
+            // ==================== RENDER ====================
+            // ... [semua render tab, modal, dll] ...
+
+            // Tab Pengaturan (tambahkan bagian Backup)
+            const PengaturanTab = () => (
+                <div className="overflow-y-auto h-full px-3 py-4 space-y-5">
+                    {/* ... manajemen menu dan bahan ... */}
+                    
+                    {/* Bagian Backup & Reset */}
+                    <div className="mt-6 pt-4 border-t">
+                        <h3 className="text-lg font-bold text-gray-800 mb-3">💾 Cadangan & Pemulihan</h3>
+                        <p className="text-xs text-gray-500 mb-3">
+                            Simpan data ke file JSON untuk cadangan. Dapat digunakan untuk pindah HP atau jaga-jaga.
+                        </p>
+                        <div className="flex gap-3">
+                            <button onClick={exportData}
+                                className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-semibold touch-target hover:bg-blue-700 shadow-sm">
+                                📤 Ekspor Cadangan
+                            </button>
+                            <label className="flex-1 bg-green-600 text-white py-3 rounded-xl font-semibold touch-target hover:bg-green-700 shadow-sm text-center cursor-pointer">
+                                📥 Impor Cadangan
+                                <input type="file" accept=".json" onChange={e => e.target.files[0] && importData(e.target.files[0])} className="hidden" />
+                            </label>
+                        </div>
+                        <div className="text-center mt-4">
+                            <button onClick={() => {
+                                if (window.confirm('⚠️ Reset semua data ke demo? Data Anda akan hilang.')) {
+                                    localStorage.removeItem('warungPintar_data_v2');
+                                    loadDemoData();
+                                    setCart([]);
+                                    showToast('Data di-reset ke demo.', 'info');
+                                }
+                            }}
+                            className="text-gray-400 text-xs underline hover:text-danger touch-target px-4 py-2">
+                                🔄 Reset ke Data Demo
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+
+            // ... [Bagian bawah, BottomNav, Toast, dll] ...
+        }
+
+        // Daftarkan service worker untuk PWA
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js').then(reg => console.log('SW registered')).catch(err => console.log('SW failed', err));
+            });
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
